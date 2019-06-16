@@ -2,6 +2,15 @@ variable "environment" {
   description = "The environment"
 }
 
+variable "region" {
+  description = "CloudWatch region"
+}
+
+variable "app_name" {
+  description = "CloudWatch App name"
+}
+
+
 variable "vpc_id" {
   description = "The VPC id"
 }
@@ -29,4 +38,25 @@ variable "public_subnet_ids" {
 variable "repository_name" {
   description = "The name of the repisitory"
 }
+
+variable "app_port" {
+  description = "Application Port listening in container."
+}
+
+variable "cpu" {
+  description = "cpu for each container."
+}
+
+variable "memory" {
+  description = "memory for each container."
+}
+
+variable "desired_count" {
+  description = "Desired count of App task."
+}
+
+variable "scale_max_count" {
+  description = "Desired Max count of App task for Autoscale."
+}
+
 

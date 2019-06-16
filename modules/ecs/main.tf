@@ -1,19 +1,19 @@
 /*====
 Cloudwatch Log Group
 ======*/
-resource "aws_cloudwatch_log_group" "openjobs" {
-  name = "openjobs"
+resource "aws_cloudwatch_log_group" "app_log_group" {
+  name = "${var.app_name}"
 
   tags {
     Environment = "${var.environment}"
-    Application = "OpenJobs"
+    Application = "${var.app_name}"
   }
 }
 
 /*====
 ECR repository to store our Docker images
 ======*/
-resource "aws_ecr_repository" "openjobs_app" {
+resource "aws_ecr_repository" "ecr_repository" {
   name = "${var.repository_name}"
 }
 
@@ -28,23 +28,25 @@ resource "aws_ecs_cluster" "cluster" {
 ECS task definitions
 ======*/
 
-/* the task definition for the web service */
-data "template_file" "web_task" {
-  template = "${file("${path.module}/tasks/web_task_definition.json")}"
+/* the task definition for the  app_service */
+data "template_file" "app_task" {
+  template = "${file("${path.module}/tasks/app_task_definition.json")}"
 
   vars {
-    image           = "${aws_ecr_repository.openjobs_app.repository_url}"
-    log_group       = "${aws_cloudwatch_log_group.openjobs.name}"
+    image           = "${aws_ecr_repository.ecr_repository.repository_url}"
+    app_port        = "${var.app_port}"
+    region          = "${var.region}"
+    log_group       = "${aws_cloudwatch_log_group.app_log_group.name}"
   }
 }
 
-resource "aws_ecs_task_definition" "web" {
-  family                   = "${var.environment}_web"
-  container_definitions    = "${data.template_file.web_task.rendered}"
+resource "aws_ecs_task_definition" "app" {
+  family                   = "${var.environment}_app"
+  container_definitions    = "${data.template_file.app_task.rendered}"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = "${var.cpu}"
+  memory                   = "${var.memory}"
   execution_role_arn       = "${aws_iam_role.ecs_execution_role.arn}"
   task_role_arn            = "${aws_iam_role.ecs_execution_role.arn}"
 }
@@ -58,7 +60,7 @@ resource "random_id" "target_group_sufix" {
 
 resource "aws_alb_target_group" "alb_target_group" {
   name     = "${var.environment}-alb-target-group-${random_id.target_group_sufix.hex}"
-  port     = 80
+  port     = "${var.app_port}"
   protocol = "HTTP"
   vpc_id   = "${var.vpc_id}"
   target_type = "ip"
@@ -69,8 +71,8 @@ resource "aws_alb_target_group" "alb_target_group" {
 }
 
 /* security group for ALB */
-resource "aws_security_group" "web_inbound_sg" {
-  name        = "${var.environment}-web-inbound-sg"
+resource "aws_security_group" "alb_inbound_sg" {
+  name        = "${var.environment}-alb-inbound-sg"
   description = "Allow HTTP from Anywhere into ALB"
   vpc_id      = "${var.vpc_id}"
 
@@ -96,23 +98,23 @@ resource "aws_security_group" "web_inbound_sg" {
   }
 
   tags {
-    Name = "${var.environment}-web-inbound-sg"
+    Name = "${var.environment}-alb-inbound-sg"
   }
 }
 
-resource "aws_alb" "alb_openjobs" {
-  name            = "${var.environment}-alb-openjobs"
+resource "aws_alb" "alb" {
+  name            = "${var.environment}-alb"
   subnets         = ["${var.public_subnet_ids}"]
-  security_groups = ["${var.security_groups_ids}", "${aws_security_group.web_inbound_sg.id}"]
+  security_groups = ["${var.security_groups_ids}", "${aws_security_group.alb_inbound_sg.id}"]
 
   tags {
-    Name        = "${var.environment}-alb-openjobs"
+    Name        = "${var.environment}-alb"
     Environment = "${var.environment}"
   }
 }
 
-resource "aws_alb_listener" "openjobs" {
-  load_balancer_arn = "${aws_alb.alb_openjobs.arn}"
+resource "aws_alb_listener" "alb_listener" {
+  load_balancer_arn = "${aws_alb.alb.arn}"
   port              = "80"
   protocol          = "HTTP"
   depends_on        = ["aws_alb_target_group.alb_target_group"]
@@ -206,8 +208,9 @@ resource "aws_security_group" "ecs_service" {
 }
 
 # /* Simply specify the family to find the latest ACTIVE revision in that family */
-data "aws_ecs_task_definition" "web" {
-   task_definition = "${aws_ecs_task_definition.web.family}"
+data "aws_ecs_task_definition" "app" {
+   task_definition = "${aws_ecs_task_definition.app.family}"
+   depends_on = ["aws_ecs_task_definition.app"]
 }
 
 
@@ -219,10 +222,10 @@ data "aws_ecs_task_definition" "web" {
 # this is not fixed terraform issue 2019/06/15
 
 ######################################################
-resource "aws_ecs_service" "web" {
-  name            = "${var.environment}-web"
-  task_definition = "${aws_ecs_task_definition.web.family}:${max("${aws_ecs_task_definition.web.revision}", "${data.aws_ecs_task_definition.web.revision}")}"
-  desired_count   = 2
+resource "aws_ecs_service" "app_service" {
+  name            = "${var.environment}-app_service"
+  task_definition = "${aws_ecs_task_definition.app.family}:${max("${aws_ecs_task_definition.app.revision}", "${data.aws_ecs_task_definition.app.revision}")}"
+  desired_count   = "${var.desired_count}"
   launch_type     = "FARGATE"
   cluster =       "${aws_ecs_cluster.cluster.id}"
   depends_on      = ["aws_iam_role_policy.ecs_service_role_policy"]
@@ -234,8 +237,8 @@ resource "aws_ecs_service" "web" {
 
   load_balancer {
     target_group_arn = "${aws_alb_target_group.alb_target_group.arn}"
-    container_name   = "web"
-    container_port   = "80"
+    container_name   = "app"
+    container_port   = "${var.app_port}"
   }
 
   depends_on = ["aws_alb_target_group.alb_target_group"]
@@ -258,17 +261,17 @@ resource "aws_iam_role_policy" "ecs_autoscale_role_policy" {
 
 resource "aws_appautoscaling_target" "target" {
   service_namespace  = "ecs"
-  resource_id        = "service/${aws_ecs_cluster.cluster.name}/${aws_ecs_service.web.name}"
+  resource_id        = "service/${aws_ecs_cluster.cluster.name}/${aws_ecs_service.app_service.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   role_arn           = "${aws_iam_role.ecs_autoscale_role.arn}"
-  min_capacity       = 2
-  max_capacity       = 4
+  min_capacity       = "${var.desired_count}"
+  max_capacity       = "${var.scale_max_count}"
 }
 
 resource "aws_appautoscaling_policy" "up" {
   name                    = "${var.environment}_scale_up"
   service_namespace       = "ecs"
-  resource_id             = "service/${aws_ecs_cluster.cluster.name}/${aws_ecs_service.web.name}"
+  resource_id             = "service/${aws_ecs_cluster.cluster.name}/${aws_ecs_service.app_service.name}"
   scalable_dimension      = "ecs:service:DesiredCount"
 
 
@@ -289,13 +292,13 @@ resource "aws_appautoscaling_policy" "up" {
 resource "aws_appautoscaling_policy" "down" {
   name                    = "${var.environment}_scale_down"
   service_namespace       = "ecs"
-  resource_id             = "service/${aws_ecs_cluster.cluster.name}/${aws_ecs_service.web.name}"
+  resource_id             = "service/${aws_ecs_cluster.cluster.name}/${aws_ecs_service.app_service.name}"
   scalable_dimension      = "ecs:service:DesiredCount"
 
   step_scaling_policy_configuration {
     adjustment_type         = "ChangeInCapacity"
     cooldown                = 60
-    metric_aggregation_type = "Maximum"
+    metric_aggregation_type = "Average"
 
     step_adjustment {
       metric_interval_lower_bound = 0
@@ -306,9 +309,9 @@ resource "aws_appautoscaling_policy" "down" {
   depends_on = ["aws_appautoscaling_target.target"]
 }
 
-/* metric used for auto scale */
+/* metric used for auto scale up*/
 resource "aws_cloudwatch_metric_alarm" "service_cpu_high" {
-  alarm_name          = "${var.environment}_openjobs_web_cpu_utilization_high"
+  alarm_name          = "${var.environment}_app_cpu_utilization_high"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = "2"
   metric_name         = "CPUUtilization"
@@ -319,9 +322,28 @@ resource "aws_cloudwatch_metric_alarm" "service_cpu_high" {
 
   dimensions {
     ClusterName = "${aws_ecs_cluster.cluster.name}"
-    ServiceName = "${aws_ecs_service.web.name}"
+    ServiceName = "${aws_ecs_service.app_service.name}"
   }
 
-  alarm_actions = ["${aws_appautoscaling_policy.up.arn}"]
-  ok_actions    = ["${aws_appautoscaling_policy.down.arn}"]
+  alarm_actions = ["${aws_appautoscaling_policy.up.arn}"]  # if cpuUtilization greater than 85%
+  ok_actions    = ["${aws_appautoscaling_policy.down.arn}"] # else === ok => scale down 
 }
+
+# /* metric used for auto scale down */
+# resource "aws_cloudwatch_metric_alarm" "cpu_utilization_low" {
+#   alarm_name          = "${var.environment}_app_cpu_utilization_row"
+#   comparison_operator = "LessThanThreshold"
+#   evaluation_periods  = "2"
+#   metric_name         = "CPUUtilization"
+#   namespace           = "AWS/ECS"
+#   period              = "60"
+#   statistic           = "Average"
+#   threshold           = "10"  # avarage cpu utilization (%) 
+
+#   dimensions {
+#     ClusterName = "${aws_ecs_cluster.cluster.name}"
+#     ServiceName = "${aws_ecs_service.app_service.name}"
+#   }
+
+#   alarm_actions = ["${aws_appautoscaling_policy.down.arn}"]
+# }

@@ -1,5 +1,5 @@
 output "repository_url" {
-  value = "${aws_ecr_repository.openjobs_app.repository_url}"
+  value = "${aws_ecr_repository.ecr_repository.repository_url}"
 }
 
 output "cluster_name" {
@@ -7,20 +7,20 @@ output "cluster_name" {
 }
 
 output "task_def_family" {
-  value = "${aws_ecs_task_definition.web.family}"
+  value = "${aws_ecs_task_definition.app.family}"
 }
 
 
 output "service_name" {
-  value = "${aws_ecs_service.web.name}"
+  value = "${aws_ecs_service.app_service.name}"
 }
 
 output "alb_dns_name" {
-  value = "${aws_alb.alb_openjobs.dns_name}"
+  value = "${aws_alb.alb.dns_name}"
 }
 
 output "alb_zone_id" {
-  value = "${aws_alb.alb_openjobs.zone_id}"
+  value = "${aws_alb.alb.zone_id}"
 }
 
 output "security_group_id" {

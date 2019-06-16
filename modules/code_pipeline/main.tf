@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "source" {
-  bucket        = "satomi-fargate"
+  bucket        = "${var.app_name}"
   acl           = "private"
   force_destroy = true
 }
@@ -38,7 +38,7 @@ data "template_file" "codebuild_policy" {
 
   vars {
     aws_s3_bucket_arn = "${aws_s3_bucket.source.arn}"
-    aws_codebuild_project_id = "${aws_codebuild_project.openjobs_build.id}"
+    aws_codebuild_project_id = "${aws_codebuild_project.code_build.id}"
   }
 }
 
@@ -62,8 +62,8 @@ data "template_file" "buildspec" {
 }
 
 
-resource "aws_codebuild_project" "openjobs_build" {
-  name          = "openjobs-codebuild"
+resource "aws_codebuild_project" "code_build" {
+  name          = "${var.app_name}-codebuild"
   build_timeout = "10"
   service_role  = "${aws_iam_role.codebuild_role.arn}"
 
@@ -76,7 +76,7 @@ resource "aws_codebuild_project" "openjobs_build" {
     // https://docs.aws.amazon.com/codebuild/latest/userguide/build-env-ref-available.html
     image           = "aws/codebuild/docker:1.12.1"
     type            = "LINUX_CONTAINER"
-    privileged_mode = true
+    privileged_mode = true # For Docke Build => true
   }
 
   source {
@@ -88,7 +88,7 @@ resource "aws_codebuild_project" "openjobs_build" {
 /* CodePipeline */
 
 resource "aws_codepipeline" "pipeline" {
-  name     = "openjobs-pipeline"
+  name     = "${var.app_name}-pipeline"
   role_arn = "${aws_iam_role.codepipeline_role.arn}"
 
   artifact_store {
@@ -108,7 +108,7 @@ resource "aws_codepipeline" "pipeline" {
       output_artifacts = ["source"]
 
       configuration {
-        RepositoryName = "satomi-faragte-demo"
+        RepositoryName = "${var.codecommit_repo_name}"
         BranchName     = "master"
       }
     }
@@ -127,7 +127,7 @@ resource "aws_codepipeline" "pipeline" {
       output_artifacts = ["imagedefinitions"]
 
       configuration {
-        ProjectName = "openjobs-codebuild"
+        ProjectName = "${var.app_name}-codebuild"
       }
     }
   }

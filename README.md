@@ -5,4 +5,5 @@ Terraform:  Fargate Auto Deploy by AWS-Pipeline(code commit code build ).
 
 ・Create "CodeCommit Repository" beforehand.
 ・Push Dockernized app code to master branch.
+・modules/ecs/tasks/app_task_definiton.json >> Modify containerPort and hostPort for app_port. 
 ・$ terraform apply

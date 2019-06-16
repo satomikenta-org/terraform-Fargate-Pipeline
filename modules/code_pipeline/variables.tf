@@ -1,5 +1,14 @@
+variable "app_name" {
+  description = "App Name"
+}
+
+
 variable "repository_url" {
   description = "The url of the ECR repository"
+}
+
+variable "codecommit_repo_name" {
+  description = "Repository Name of CodeCommit"
 }
 
 variable "region" {
