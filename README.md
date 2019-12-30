@@ -14,3 +14,5 @@ Terraform:  Fargate Auto Deploy by AWS-Pipeline(code commit code build ).
 
 TODO:
 Apply SSL and Domain to ALB.
+
+*** add branch 'terraformv0.12.18' for terraform@0.12.8
