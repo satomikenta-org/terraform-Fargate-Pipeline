@@ -4,7 +4,7 @@ Cloudwatch Log Group
 resource "aws_cloudwatch_log_group" "app_log_group" {
   name = "${var.app_name}"
 
-  tags {
+  tags = {
     Environment = "${var.environment}"
     Application = "${var.app_name}"
   }
@@ -32,7 +32,7 @@ ECS task definitions
 data "template_file" "app_task" {
   template = "${file("${path.module}/tasks/app_task_definition.json")}"
 
-  vars {
+  vars = {
     image           = "${aws_ecr_repository.ecr_repository.repository_url}"
     app_port        = "${var.app_port}"
     region          = "${var.region}"
@@ -97,17 +97,16 @@ resource "aws_security_group" "alb_inbound_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags {
+  tags = {
     Name = "${var.environment}-alb-inbound-sg"
   }
 }
 
 resource "aws_alb" "alb" {
   name            = "${var.environment}-alb"
-  subnets         = ["${var.public_subnet_ids}"]
-  security_groups = ["${var.security_groups_ids}", "${aws_security_group.alb_inbound_sg.id}"]
-
-  tags {
+  subnets         = "${var.public_subnet_ids}"
+  security_groups = flatten(["${var.security_groups_ids}", "${aws_security_group.alb_inbound_sg.id}"])
+  tags = {
     Name        = "${var.environment}-alb"
     Environment = "${var.environment}"
   }
@@ -201,7 +200,7 @@ resource "aws_security_group" "ecs_service" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags {
+  tags = {
     Name        = "${var.environment}-ecs-service-sg"
     Environment = "${var.environment}"
   }
@@ -231,8 +230,8 @@ resource "aws_ecs_service" "app_service" {
   depends_on      = ["aws_iam_role_policy.ecs_service_role_policy"]
 
   network_configuration {
-    security_groups = ["${var.security_groups_ids}", "${aws_security_group.ecs_service.id}"]
-    subnets         = ["${var.subnets_ids}"]
+    security_groups = flatten(["${var.security_groups_ids}", "${aws_security_group.ecs_service.id}"])
+    subnets         = "${var.subnets_ids}"
   }
 
   load_balancer {
@@ -240,8 +239,6 @@ resource "aws_ecs_service" "app_service" {
     container_name   = "app"
     container_port   = "${var.app_port}"
   }
-
-  depends_on = ["aws_alb_target_group.alb_target_group"]
 }
 
 
@@ -320,7 +317,7 @@ resource "aws_cloudwatch_metric_alarm" "service_cpu_high" {
   statistic           = "Maximum"
   threshold           = "85"
 
-  dimensions {
+  dimensions = {
     ClusterName = "${aws_ecs_cluster.cluster.name}"
     ServiceName = "${aws_ecs_service.app_service.name}"
   }

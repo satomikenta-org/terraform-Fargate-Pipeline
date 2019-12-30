@@ -2,6 +2,14 @@ variable "region" {
   description = "Region that the infrastructure will be created"
 }
 
+variable "access_key" {
+  description = "aws access_key"
+}
+
+variable "secret_key" {
+  description = "aws secret_key"
+}
+
 variable "environment" {
   description = "Environment: dev or prod"
 }

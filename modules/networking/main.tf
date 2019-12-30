@@ -15,7 +15,7 @@ resource "aws_vpc" "vpc" {
 resource "aws_internet_gateway" "ig" {
   vpc_id = "${aws_vpc.vpc.id}"
 
-  tags {
+  tags = {
     Name        = "${var.environment}-igw"
     Environment = "${var.environment}"
   }
@@ -31,8 +31,8 @@ resource "aws_nat_gateway" "nat" {
   subnet_id     = "${element(aws_subnet.public_subnet.*.id, 0)}"
   depends_on    = ["aws_internet_gateway.ig"]
 
-  tags {
-    Name        = "${var.environment}-${element(var.availability_zones, count.index)}-nat"
+  tags = {
+    Name        = "${var.environment}-nat"
     Environment = "${var.environment}"
   }
 }
@@ -44,7 +44,7 @@ resource "aws_subnet" "public_subnet" {
   availability_zone       = "${element(var.availability_zones, count.index)}"
   map_public_ip_on_launch = true
 
-  tags {
+  tags = {
     Name        = "${var.environment}-${element(var.availability_zones, count.index)}-public-subnet"
     Environment = "${var.environment}"
   }
@@ -58,7 +58,7 @@ resource "aws_subnet" "private_subnet" {
   availability_zone       = "${element(var.availability_zones, count.index)}"
   map_public_ip_on_launch = false
 
-  tags {
+  tags = {
     Name        = "${var.environment}-${element(var.availability_zones, count.index)}-private-subnet"
     Environment = "${var.environment}"
   }
@@ -68,7 +68,7 @@ resource "aws_subnet" "private_subnet" {
 resource "aws_route_table" "private" {
   vpc_id = "${aws_vpc.vpc.id}"
 
-  tags {
+  tags = {
     Name        = "${var.environment}-private-route-table"
     Environment = "${var.environment}"
   }
@@ -78,7 +78,7 @@ resource "aws_route_table" "private" {
 resource "aws_route_table" "public" {
   vpc_id = "${aws_vpc.vpc.id}"
 
-  tags {
+  tags = {
     Name        = "${var.environment}-public-route-table"
     Environment = "${var.environment}"
   }
@@ -132,7 +132,7 @@ resource "aws_security_group" "default" {
     self      = "true"
   }
 
-  tags {
+  tags = {
     Environment = "${var.environment}"
   }
 }

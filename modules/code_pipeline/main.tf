@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "source" {
-  bucket        = "${var.app_name}"
+  bucket        = "${var.app_name}-codepipeline-bucket-demo"
   acl           = "private"
   force_destroy = true
 }
@@ -14,7 +14,7 @@ resource "aws_iam_role" "codepipeline_role" {
 data "template_file" "codepipeline_policy" {
   template = "${file("${path.module}/policies/codepipeline.json")}"
 
-  vars {
+  vars = {
     aws_s3_bucket_arn = "${aws_s3_bucket.source.arn}"
   }
 }
@@ -36,7 +36,7 @@ resource "aws_iam_role" "codebuild_role" {
 data "template_file" "codebuild_policy" {
   template = "${file("${path.module}/policies/codebuild_policy.json")}"
 
-  vars {
+  vars = {
     aws_s3_bucket_arn = "${aws_s3_bucket.source.arn}"
     aws_codebuild_project_id = "${aws_codebuild_project.code_build.id}"
   }
@@ -51,7 +51,7 @@ resource "aws_iam_role_policy" "codebuild_policy" {
 data "template_file" "buildspec" {
   template = "${file("${path.module}/buildspec.yml")}"
 
-  vars {
+  vars = {
     repository_url     = "${var.repository_url}"
     region             = "${var.region}"
     cluster_name       = "${var.ecs_cluster_name}"
@@ -107,7 +107,7 @@ resource "aws_codepipeline" "pipeline" {
       version          = "1"
       output_artifacts = ["source"]
 
-      configuration {
+      configuration = {
         RepositoryName = "${var.codecommit_repo_name}"
         BranchName     = "master"
       }
@@ -126,7 +126,7 @@ resource "aws_codepipeline" "pipeline" {
       input_artifacts  = ["source"]
       output_artifacts = ["imagedefinitions"]
 
-      configuration {
+      configuration = {
         ProjectName = "${var.app_name}-codebuild"
       }
     }
@@ -143,7 +143,7 @@ resource "aws_codepipeline" "pipeline" {
       input_artifacts = ["imagedefinitions"]
       version         = "1"
 
-      configuration {
+      configuration = {
         ClusterName = "${var.ecs_cluster_name}"
         ServiceName = "${var.ecs_service_name}"
         FileName    = "imagedefinitions.json"
